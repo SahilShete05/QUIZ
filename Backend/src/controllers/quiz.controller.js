@@ -37,15 +37,27 @@ const createQuiz = async (req, res) => {
 };
 
 // =====================
-// Get Quizz By ID
+// GET QUIZ BY ID
 // =====================
+
 const getQuizById = async (req, res) => {
   try {
     const { id } = req.params;
 
     const quiz = await prisma.quiz.findUnique({
-      where: {
-        id,
+      where: { id },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            questions: true,
+          },
+        },
       },
     });
 
@@ -71,25 +83,24 @@ const getQuizById = async (req, res) => {
 };
 
 // =====================
-// Get All Quizzes
+// GET ALL QUIZZES
 // =====================
 
-const getAllQuizzes = async (
-  req,
-  res
-) => {
+const getAllQuizzes = async (req, res) => {
   try {
-    const page =
-      parseInt(req.query.page) || 1;
+    const page = Math.max(
+      parseInt(req.query.page) || 1,
+      1
+    );
 
-    const limit =
-      parseInt(req.query.limit) || 10;
+    const limit = Math.max(
+      parseInt(req.query.limit) || 10,
+      1
+    );
 
-    const search =
-      req.query.search || "";
+    const search = req.query.search || "";
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const where = {
       title: {
@@ -98,20 +109,25 @@ const getAllQuizzes = async (
       },
     };
 
-    const quizzes =
-      await prisma.quiz.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          createdAt: "desc",
+    const quizzes = await prisma.quiz.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        _count: {
+          select: {
+            questions: true,
+          },
         },
-      });
+      },
+    });
 
-    const total =
-      await prisma.quiz.count({
-        where,
-      });
+    const total = await prisma.quiz.count({
+      where,
+    });
 
     return res.status(200).json({
       success: true,
@@ -141,75 +157,87 @@ const getAllQuizzes = async (
     });
   }
 };
+
 // =====================
 // GET PUBLISHED QUIZZES
 // =====================
 
-const getPublishedQuizzes =
-  async (req, res) => {
-    try {
-      const page =
-        parseInt(req.query.page) || 1;
+const getPublishedQuizzes = async (
+  req,
+  res
+) => {
+  try {
+    const page = Math.max(
+      parseInt(req.query.page) || 1,
+      1
+    );
 
-      const limit =
-        parseInt(req.query.limit) || 10;
+    const limit = Math.max(
+      parseInt(req.query.limit) || 10,
+      1
+    );
 
-      const search =
-        req.query.search || "";
+    const search = req.query.search || "";
 
-      const skip =
-        (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-      const where = {
-        isPublished: true,
+    const where = {
+      isPublished: true,
+      title: {
+        contains: search,
+        mode: "insensitive",
+      },
+    };
 
-        title: {
-          contains: search,
-          mode: "insensitive",
-        },
-      };
-
-      const quizzes =
-        await prisma.quiz.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: {
-            createdAt: "desc",
+    const quizzes = await prisma.quiz.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        _count: {
+          select: {
+            questions: true,
           },
-        });
-
-      const total =
-        await prisma.quiz.count({
-          where,
-        });
-
-      return res.status(200).json({
-        success: true,
-
-        pagination: {
-          totalItems: total,
-          currentPage: page,
-          totalPages: Math.ceil(
-            total / limit
-          ),
-          limit,
         },
+      },
+    });
 
-        quizzes,
-      });
-    } catch (error) {
-      console.error(error);
+    const total = await prisma.quiz.count({
+      where,
+    });
 
-      return res.status(500).json({
-        success: false,
-        message: "Server error",
-      });
-    }
-  };
+    return res.status(200).json({
+      success: true,
+
+      pagination: {
+        totalItems: total,
+        currentPage: page,
+        totalPages: Math.ceil(
+          total / limit
+        ),
+        limit,
+      },
+
+      quizzes,
+    });
+  } catch (error) {
+    console.error(
+      "GET PUBLISHED QUIZZES ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
 
 // =====================
-// Update Quiz
+// UPDATE QUIZ
 // =====================
 
 const updateQuiz = async (req, res) => {
@@ -237,20 +265,35 @@ const updateQuiz = async (req, res) => {
       });
     }
 
-    const updatedQuiz = await prisma.quiz.update({
-      where: {
-        id,
-      },
-      data: req.body,
-    });
+    const {
+      title,
+      description,
+      durationSeconds,
+      isPublished,
+    } = req.body;
+
+    const updatedQuiz =
+      await prisma.quiz.update({
+        where: { id },
+        data: {
+          title,
+          description,
+          durationSeconds,
+          isPublished,
+        },
+      });
 
     return res.status(200).json({
       success: true,
-      message: "Quiz updated successfully",
+      message:
+        "Quiz updated successfully",
       quiz: updatedQuiz,
     });
   } catch (error) {
-    console.error("UPDATE QUIZ ERROR:", error);
+    console.error(
+      "UPDATE QUIZ ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -259,9 +302,8 @@ const updateQuiz = async (req, res) => {
   }
 };
 
-
 // =====================
-// Delete Quiz
+// DELETE QUIZ
 // =====================
 
 const deleteQuiz = async (req, res) => {
@@ -290,25 +332,27 @@ const deleteQuiz = async (req, res) => {
     }
 
     await prisma.quiz.delete({
-      where: {
-        id,
-      },
+      where: { id },
     });
 
     return res.status(200).json({
       success: true,
-      message: "Quiz deleted successfully",
+      message:
+        "Quiz deleted successfully",
     });
   } catch (error) {
-    console.error("DELETE QUIZ ERROR:", error);
+    console.error(
+      "DELETE QUIZ ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Server error",
+      message:
+        "Quiz cannot be deleted because it is being used by attempts",
     });
   }
 };
-
 
 // =====================
 // PUBLISH QUIZ
@@ -449,9 +493,9 @@ module.exports = {
   createQuiz,
   getQuizById,
   getAllQuizzes,
+  getPublishedQuizzes,
   updateQuiz,
   deleteQuiz,
   publishQuiz,
   unpublishQuiz,
-  getPublishedQuizzes
 };
