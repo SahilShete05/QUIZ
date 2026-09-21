@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String      @id @default(uuid())
+  name           String
+  email          String      @unique
+  passwordHash   String
+
+  resetToken     String?
+  resetTokenExp  DateTime?
+
+  role           Role        @default(STUDENT)
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  level          Int         @default(1)
+  xp             Int         @default(0)
+
+  attempts       Attempt[]
+  quizzesCreated Quiz[]      @relation("QuizCreatedBy")
+  badges         UserBadge[]
+  notifications Notification[]
+}
+
+model Quiz {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  durationSeconds Int
+  createdById     String
+  isPublished     Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  attempts        Attempt[]
+  createdBy       User           @relation("QuizCreatedBy", fields: [createdById], references: [id])
+  questions       QuizQuestion[]
+
+  @@index([createdById])
+}
+
+model QuizQuestion {
+  id         String   @id @default(uuid())
+  quizId     String
+  questionId String
+  order      Int
+  points     Int      @default(1)
+  question   Question @relation(fields: [questionId], references: [id])
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, questionId])
+  @@index([quizId])
+  @@index([questionId])
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  questions Question[]
+}
+
+model Question {
+  id         String         @id @default(uuid())
+  text       String
+  type       QuestionType
+  difficulty Difficulty     @default(MEDIUM)
+  categoryId String?
+  answerKey  String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  answers    Answer[]
+  options    Option[]
+  category   Category?      @relation(fields: [categoryId], references: [id])
+  quizLinks  QuizQuestion[]
+
+  @@index([categoryId])
+  @@index([type])
+}
+
+model Option {
+  id         String   @id @default(uuid())
+  questionId String
+  text       String
+  isCorrect  Boolean  @default(false)
+  selectedIn Answer[] @relation("SelectedOption")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model Attempt {
+  id                    String         @id @default(uuid())
+  userId                String
+  quizId                String
+  status                AttemptStatus  @default(IN_PROGRESS)
+  startedAt             DateTime       @default(now())
+  submittedAt           DateTime?
+  completionTimeSeconds Int?
+  score                 Int?
+  seed                  Int
+  answers               Answer[]
+  quiz                  Quiz           @relation(fields: [quizId], references: [id])
+  user                  User           @relation(fields: [userId], references: [id])
+  events                AttemptEvent[]
+
+  @@index([quizId, score, completionTimeSeconds])
+  @@index([userId])
+}
+
+model Answer {
+  id               String   @id @default(uuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  textResponse     String?
+  isCorrect        Boolean?
+  pointsAwarded    Int      @default(0)
+  aiExplanation    String?
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question @relation(fields: [questionId], references: [id])
+  selectedOption   Option?  @relation("SelectedOption", fields: [selectedOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String
+  iconUrl     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model AttemptEvent {
+  id        String           @id @default(uuid())
+  attemptId String
+  eventType AttemptEventType
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  attempt   Attempt          @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([attemptId, eventType])
+}
+
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+
+  title     String
+  message   String
+
+  isRead    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields:[userId], references:[id])
+
+  @@index([userId])
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  FILL_IN_BLANK
+  SHORT_ANSWER
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+enum AttemptEventType {
+  TAB_SWITCH
+  COPY_ATTEMPT
+  PASTE_ATTEMPT
+  RIGHT_CLICK_ATTEMPT
+}
