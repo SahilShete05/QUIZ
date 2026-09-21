@@ -35,10 +35,7 @@ const getQuizAnalytics = async (req, res) => {
       where: {
         quizId,
         status: {
-          in: [
-            "SUBMITTED",
-            "AUTO_SUBMITTED",
-          ],
+          in: ["SUBMITTED", "AUTO_SUBMITTED"],
         },
       },
       select: {
@@ -77,9 +74,9 @@ const getQuizAnalytics = async (req, res) => {
     const avgCompletionTime =
       attempts.length > 0
         ? attempts.reduce(
-            (sum, a) =>
+            (sum, attempt) =>
               sum +
-              (a.completionTimeSeconds || 0),
+              (attempt.completionTimeSeconds || 0),
             0
           ) / attempts.length
         : 0;
@@ -94,17 +91,12 @@ const getQuizAnalytics = async (req, res) => {
     const completionRate =
       totalStarted > 0
         ? (
-            (totalAttempts /
-              totalStarted) *
+            (totalAttempts / totalStarted) *
             100
           ).toFixed(2)
         : 0;
 
-    // =====================
-    // MAX SCORE
-    // =====================
-
-    const maxScoreData =
+    const maxScoreResult =
       await prisma.quizQuestion.aggregate({
         where: {
           quizId,
@@ -115,11 +107,7 @@ const getQuizAnalytics = async (req, res) => {
       });
 
     const maxScore =
-      maxScoreData._sum.points || 0;
-
-    // =====================
-    // PASS RATE
-    // =====================
+      maxScoreResult._sum.points || 0;
 
     const passedAttempts =
       attempts.filter((attempt) => {
@@ -141,10 +129,6 @@ const getQuizAnalytics = async (req, res) => {
             100
           ).toFixed(2)
         : 0;
-
-    // =====================
-    // SCORE DISTRIBUTION
-    // =====================
 
     const scoreDistribution = {
       excellent: 0,
@@ -175,35 +159,22 @@ const getQuizAnalytics = async (req, res) => {
     return res.status(200).json({
       success: true,
       analytics: {
-        quizId,
-
         maxScore,
-
         totalAttempts,
-
         totalStudents,
-
         averageScore: Number(
           averageScore.toFixed(2)
         ),
-
         highestScore,
-
         lowestScore,
-
         averageCompletionTimeSeconds:
           Number(
             avgCompletionTime.toFixed(2)
           ),
-
         completionRate: Number(
           completionRate
         ),
-
-        passRate: Number(
-          passRate
-        ),
-
+        passRate: Number(passRate),
         scoreDistribution,
       },
     });
@@ -231,12 +202,11 @@ const getQuestionAnalytics = async (
   try {
     const { quizId } = req.params;
 
-    const quiz =
-      await prisma.quiz.findUnique({
-        where: {
-          id: quizId,
-        },
-      });
+    const quiz = await prisma.quiz.findUnique({
+      where: {
+        id: quizId,
+      },
+    });
 
     if (!quiz) {
       return res.status(404).json({
@@ -309,33 +279,30 @@ const getQuestionAnalytics = async (
       analytics.push({
         questionId:
           item.question.id,
-
         question:
           item.question.text,
-
         difficulty:
           item.question.difficulty,
-
         totalAnswers,
-
         correctAnswers,
-
         wrongAnswers,
-
-        accuracy:
-          Number(accuracy),
+        accuracy: Number(
+          accuracy
+        ),
       });
     }
 
     return res.status(200).json({
       success: true,
-      quizId,
       totalQuestions:
         analytics.length,
       analytics,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "QUESTION ANALYTICS ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
