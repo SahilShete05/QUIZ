@@ -4,10 +4,12 @@ const { sendBadgeEarnedEmail } = require("./emailTemplate.service");
 
 const awardBadge = async (
   userId,
-  badgeName
+  badgeName,
+  db = prisma,
+  afterCommit = null
 ) => {
   const badge =
-    await prisma.badge.findUnique({
+    await db.badge.findUnique({
       where: {
         name: badgeName,
       },
@@ -16,7 +18,7 @@ const awardBadge = async (
   if (!badge) return;
 
   const alreadyExists =
-    await prisma.userBadge.findFirst({
+    await db.userBadge.findFirst({
       where: {
         userId,
         badgeId: badge.id,
@@ -25,7 +27,7 @@ const awardBadge = async (
 
   if (alreadyExists) return;
 
-  await prisma.userBadge.create({
+  await db.userBadge.create({
     data: {
       userId,
       badgeId: badge.id,
@@ -33,23 +35,32 @@ const awardBadge = async (
   });
 
   const user =
-    await prisma.user.findUnique({
+    await db.user.findUnique({
       where: {
         id: userId,
       },
     });
 
-  try {
-    await sendBadgeEarnedEmail(
-      user.email,
-      user.name,
-      badge.name
-    );
-  } catch (error) {
-    console.error(
-      "BADGE EMAIL ERROR:",
-      error
-    );
+  const sendEmail = async () => {
+    try {
+      await sendBadgeEarnedEmail(
+        user.email,
+        user.name,
+        badge.name
+      );
+    } catch (error) {
+      console.error(
+        "BADGE EMAIL ERROR:",
+        error
+      );
+    }
+  };
+
+  // Inside a transaction the email is sent only after commit.
+  if (afterCommit) {
+    afterCommit.push(sendEmail);
+  } else {
+    await sendEmail();
   }
 };
 

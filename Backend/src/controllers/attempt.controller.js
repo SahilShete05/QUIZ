@@ -103,6 +103,9 @@ const answerQuestion = async (req, res) => {
         where: {
           id: attemptId,
         },
+        include: {
+          quiz: true,
+        },
       });
 
     if (!attempt) {
@@ -128,6 +131,19 @@ const answerQuestion = async (req, res) => {
       });
     }
 
+    // Deadline check: no answers after time is up (small grace period
+    // for network delay), even if the cron job has not auto-submitted yet.
+    const endTime =
+      new Date(attempt.startedAt).getTime() +
+      attempt.quiz.durationSeconds * 1000;
+
+    if (Date.now() > endTime + 5000) {
+      return res.status(400).json({
+        success: false,
+        message: "Quiz time has expired",
+      });
+    }
+
     // Question belongs to quiz
     const quizQuestion =
       await prisma.quizQuestion.findFirst({
@@ -145,7 +161,7 @@ const answerQuestion = async (req, res) => {
       });
     }
 
-    // Check duplicate answer
+    // Existing answer: the student is changing it (updated below)
     const existing =
       await prisma.answer.findFirst({
         where: {
@@ -153,13 +169,6 @@ const answerQuestion = async (req, res) => {
           questionId,
         },
       });
-
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: "Already answered",
-      });
-    }
 
     // Validate option
     if (selectedOptionId) {
@@ -181,9 +190,24 @@ const answerQuestion = async (req, res) => {
       }
     }
 
+    // Upsert on @@unique([attemptId, questionId]): saving again replaces the
+    // previous answer, and two simultaneous first saves cannot collide.
+    // The unused field is cleared so only one of the two is ever stored.
     const answer =
-      await prisma.answer.create({
-        data: {
+      await prisma.answer.upsert({
+        where: {
+          attemptId_questionId: {
+            attemptId,
+            questionId,
+          },
+        },
+        update: {
+          selectedOptionId:
+            selectedOptionId ?? null,
+          textResponse:
+            textResponse ?? null,
+        },
+        create: {
           attemptId,
           questionId,
           selectedOptionId,
@@ -191,7 +215,7 @@ const answerQuestion = async (req, res) => {
         },
       });
 
-    return res.status(201).json({
+    return res.status(existing ? 200 : 201).json({
       success: true,
       answer,
     });
@@ -245,14 +269,6 @@ const submitAttempt = async (req, res) => {
         success: false,
         message:
           "Attempt already submitted",
-      });
-    }
-
-    if (attempt.answers.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "No answers submitted",
       });
     }
 
@@ -318,6 +334,14 @@ const submitAttempt = async (req, res) => {
       attempt: updatedAttempt,
     });
   } catch (error) {
+    if (error.code === "ATTEMPT_ALREADY_SUBMITTED") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Attempt already submitted",
+      });
+    }
+
     console.error(
       "SUBMIT ATTEMPT ERROR:",
       error
@@ -365,9 +389,68 @@ const getAttempt = async (req, res) => {
       });
     }
     
+    // While the attempt is running, never expose correctness data:
+    // selectedOption.isCorrect and question.answerKey reveal the answers.
+    if (attempt.status === "IN_PROGRESS") {
+      attempt.answers = attempt.answers.map((answer) => {
+        const { selectedOption, question, ...rest } = answer;
+
+        return {
+          ...rest,
+          selectedOption: selectedOption
+            ? { id: selectedOption.id, text: selectedOption.text }
+            : null,
+          question: question
+            ? { id: question.id, text: question.text, type: question.type }
+            : null,
+        };
+      });
+    }
+
+    const violationCount = await prisma.attemptEvent.count({
+      where: { attemptId: attempt.id },
+    });
+
+    // After submission the student may see the correct answer of every quiz
+    // question (including unanswered ones). Never sent while in progress.
+    let correctAnswers;
+
+    if (attempt.status !== "IN_PROGRESS") {
+      const quizQuestions =
+        await prisma.quizQuestion.findMany({
+          where: {
+            quizId: attempt.quizId,
+          },
+          include: {
+            question: {
+              include: {
+                options: true,
+              },
+            },
+          },
+        });
+
+      correctAnswers = quizQuestions.map(
+        ({ question }) => ({
+          questionId: question.id,
+          correctAnswer:
+            question.options
+              .filter((option) => option.isCorrect)
+              .map((option) => option.text)
+              .join(" / ") ||
+            question.answerKey ||
+            null,
+        })
+      );
+    }
+
     return res.status(200).json({
       success: true,
-      attempt,
+      attempt: {
+        ...attempt,
+        violationCount,
+        ...(correctAnswers ? { correctAnswers } : {}),
+      },
     });
 
   }
@@ -532,6 +615,14 @@ const autoSubmitAttempt = async (req, res) => {
         updatedAttempt,
     });
   } catch (error) {
+    if (error.code === "ATTEMPT_ALREADY_SUBMITTED") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Attempt already submitted",
+      });
+    }
+
     console.error(
       "AUTO SUBMIT ERROR:",
       error

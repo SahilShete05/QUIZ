@@ -5,18 +5,22 @@ const { addXP } = require("./xp.service");
 const processRewards = async (
   userId,
   score,
-  maxScore
+  maxScore,
+  db = prisma,
+  afterCommit = null
 ) => {
   const xpEarned = score * 10;
 
   const updatedUser =
     await addXP(
       userId,
-      xpEarned
+      xpEarned,
+      db,
+      afterCommit
     );
 
   const attempts =
-    await prisma.attempt.count({
+    await db.attempt.count({
       where: {
         userId,
         status: {
@@ -31,7 +35,9 @@ const processRewards = async (
   if (attempts === 1) {
     await awardBadge(
       userId,
-      "First Quiz"
+      "First Quiz",
+      db,
+      afterCommit
     );
   }
 
@@ -41,21 +47,27 @@ const processRewards = async (
   ) {
     await awardBadge(
       userId,
-      "Perfect Score"
+      "Perfect Score",
+      db,
+      afterCommit
     );
   }
 
   if (attempts >= 10) {
     await awardBadge(
       userId,
-      "Quiz Master"
+      "Quiz Master",
+      db,
+      afterCommit
     );
   }
 
   if (updatedUser.level >= 5) {
     await awardBadge(
       userId,
-      "Level 5"
+      "Level 5",
+      db,
+      afterCommit
     );
   }
 

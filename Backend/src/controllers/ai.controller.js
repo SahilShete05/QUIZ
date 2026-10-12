@@ -52,59 +52,73 @@ const generateAIQuiz = async (
         });
     }
 
+    // All database writes run in ONE transaction: if anything fails, no
+    // partial quiz or half-added questions are left behind. The slow AI call
+    // stays outside, so the transaction stays short.
     const quiz =
-      await prisma.quiz.create({
-        data: {
-          title,
-          description:
-            `AI Generated Quiz on ${topic}`,
-          durationSeconds:
-            questionCount * 60,
-          createdById:
-            req.user.id,
-          isPublished: false,
+      await prisma.$transaction(
+        async (tx) => {
+          const quiz =
+            await tx.quiz.create({
+              data: {
+                title,
+                description:
+                  `AI Generated Quiz on ${topic}`,
+                durationSeconds:
+                  questionCount * 60,
+                createdById:
+                  req.user.id,
+                isPublished: false,
+              },
+            });
+
+          let order = 1;
+
+          for (const q of aiQuestions) {
+            const question =
+              await tx.question.create({
+                data: {
+                  text: q.question,
+                  type: "MCQ",
+                  difficulty,
+                  categoryId:
+                    category.id,
+                },
+              });
+
+            for (const optionText of q.options) {
+              await tx.option.create({
+                data: {
+                  questionId:
+                    question.id,
+                  text: optionText,
+                  isCorrect:
+                    optionText ===
+                    q.correctAnswer,
+                },
+              });
+            }
+
+            await tx.quizQuestion.create({
+              data: {
+                quizId: quiz.id,
+                questionId:
+                  question.id,
+                order,
+                points: 1,
+              },
+            });
+
+            order++;
+          }
+
+          return quiz;
         },
-      });
-
-    let order = 1;
-
-    for (const q of aiQuestions) {
-      const question =
-        await prisma.question.create({
-          data: {
-            text: q.question,
-            type: "MCQ",
-            difficulty,
-            categoryId:
-              category.id,
-          },
-        });
-
-      for (const optionText of q.options) {
-        await prisma.option.create({
-          data: {
-            questionId:
-              question.id,
-            text: optionText,
-            isCorrect:
-              optionText ===
-              q.correctAnswer,
-          },
-        });
-      }
-
-      await prisma.quizQuestion.create({
-        data: {
-          quizId: quiz.id,
-          questionId:
-            question.id,
-          order,
-          points: 1,
-        },
-      });
-
-      order++;
-    }
+        {
+          maxWait: 5000,
+          timeout: 30000,
+        }
+      );
 
     return res.status(201).json({
       success: true,
@@ -187,56 +201,67 @@ const addQuestionsToQuiz = async (
         });
     }
 
-    const lastQuestion =
-      await prisma.quizQuestion.findFirst({
-        where: {
-          quizId,
-        },
-        orderBy: {
-          order: "desc",
-        },
-      });
+    // All database writes run in ONE transaction: if anything fails, no
+    // partial quiz or half-added questions are left behind. The slow AI call
+    // stays outside, so the transaction stays short.
+    await prisma.$transaction(
+      async (tx) => {
+        const lastQuestion =
+          await tx.quizQuestion.findFirst({
+            where: {
+              quizId,
+            },
+            orderBy: {
+              order: "desc",
+            },
+          });
 
-    let order =
-      (lastQuestion?.order || 0) + 1;
+        let order =
+          (lastQuestion?.order || 0) + 1;
 
-    for (const q of aiQuestions) {
-      const question =
-        await prisma.question.create({
-          data: {
-            text: q.question,
-            type: "MCQ",
-            difficulty,
-            categoryId:
-              category.id,
-          },
-        });
+        for (const q of aiQuestions) {
+          const question =
+            await tx.question.create({
+              data: {
+                text: q.question,
+                type: "MCQ",
+                difficulty,
+                categoryId:
+                  category.id,
+              },
+            });
 
-      for (const optionText of q.options) {
-        await prisma.option.create({
-          data: {
-            questionId:
-              question.id,
-            text: optionText,
-            isCorrect:
-              optionText ===
-              q.correctAnswer,
-          },
-        });
+          for (const optionText of q.options) {
+            await tx.option.create({
+              data: {
+                questionId:
+                  question.id,
+                text: optionText,
+                isCorrect:
+                  optionText ===
+                  q.correctAnswer,
+              },
+            });
+          }
+
+          await tx.quizQuestion.create({
+            data: {
+              quizId,
+              questionId:
+                question.id,
+              order,
+              points: 1,
+            },
+          });
+
+          order++;
+        }
+      },
+      {
+        maxWait: 5000,
+        timeout: 30000,
       }
-
-      await prisma.quizQuestion.create({
-        data: {
-          quizId,
-          questionId:
-            question.id,
-          order,
-          points: 1,
-        },
-      });
-
-      order++;
-    }
+    );
 
     return res.status(201).json({
       success: true,
@@ -297,16 +322,80 @@ const generateAttemptReview = async (
       });
     }
 
+    // Reviews reveal correct answers, so only after submission.
+    if (attempt.status === "IN_PROGRESS") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Attempt not submitted yet",
+      });
+    }
+
+    // Only MCQ / true-false answers are auto-graded, so only those can be
+    // "wrong" and get an AI explanation.
     const wrongAnswers =
       attempt.answers.filter(
         (answer) => answer.isCorrect === false
       );
 
-    if (wrongAnswers.length === 0) {
+    // Unanswered questions and text answers (not auto-graded) get the
+    // correct answer but no AI explanation.
+    const quizQuestions =
+      await prisma.quizQuestion.findMany({
+        where: {
+          quizId: attempt.quizId,
+        },
+        include: {
+          question: {
+            include: {
+              options: true,
+            },
+          },
+        },
+        orderBy: {
+          order: "asc",
+        },
+      });
+
+    const extraReviews = [];
+
+    for (const quizQuestion of quizQuestions) {
+      const question = quizQuestion.question;
+
+      const answer = attempt.answers.find(
+        (a) => a.questionId === question.id
+      );
+
+      const unanswered = !answer;
+      const ungradedText =
+        answer && answer.isCorrect === null;
+
+      if (!unanswered && !ungradedText) continue;
+
+      extraReviews.push({
+        questionId: question.id,
+        question: question.text,
+        yourAnswer:
+          answer?.textResponse || null,
+        correctAnswer:
+          question.options.find(
+            (option) => option.isCorrect
+          )?.text ||
+          question.answerKey ||
+          null,
+        explanation: null,
+      });
+    }
+
+    if (
+      wrongAnswers.length === 0 &&
+      extraReviews.length === 0
+    ) {
       return res.status(200).json({
         success: true,
         message:
           "Perfect score. No review needed.",
+        reviews: [],
       });
     }
 
@@ -362,6 +451,8 @@ Maximum 120 words.
       });
 
       reviews.push({
+        questionId:
+          answer.questionId,
         question:
           answer.question.text,
         yourAnswer:
@@ -373,6 +464,8 @@ Maximum 120 words.
         explanation,
       });
     }
+
+    reviews.push(...extraReviews);
 
     return res.status(200).json({
       success: true,

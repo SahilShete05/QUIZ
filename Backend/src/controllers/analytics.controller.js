@@ -1,317 +1,162 @@
-const prisma = require("../config/prismaClient");
+const analyticsService = require("../services/analytics.service");
 
-// =====================
-// QUIZ ANALYTICS
-// =====================
+const handleError = (res, error) => {
+  const statusCode = error.statusCode || 500;
+
+  if (statusCode >= 500) {
+    console.error("Analytics error:", error);
+  }
+
+  return res.status(statusCode).json({
+    success: false,
+    message:
+      statusCode >= 500
+        ? "An error occurred while retrieving analytics"
+        : error.message,
+  });
+};
 
 const getQuizAnalytics = async (req, res) => {
   try {
-    const { quizId } = req.params;
-
-    const quiz = await prisma.quiz.findUnique({
-      where: {
-        id: quizId,
-      },
-    });
-
-    if (!quiz) {
-      return res.status(404).json({
-        success: false,
-        message: "Quiz not found",
-      });
-    }
-
-    if (
-      req.user.role !== "ADMIN" &&
-      quiz.createdById !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
-    }
-
-    const attempts = await prisma.attempt.findMany({
-      where: {
-        quizId,
-        status: {
-          in: ["SUBMITTED", "AUTO_SUBMITTED"],
-        },
-      },
-      select: {
-        score: true,
-        completionTimeSeconds: true,
-        userId: true,
-      },
-    });
-
-    const totalAttempts = attempts.length;
-
-    const totalStudents = new Set(
-      attempts.map((a) => a.userId)
-    ).size;
-
-    const scores = attempts.map(
-      (a) => a.score || 0
+    const analytics = await analyticsService.getQuizAnalytics(
+      req.params.quizId,
+      req.user,
     );
-
-    const averageScore =
-      scores.length > 0
-        ? scores.reduce((a, b) => a + b, 0) /
-          scores.length
-        : 0;
-
-    const highestScore =
-      scores.length > 0
-        ? Math.max(...scores)
-        : 0;
-
-    const lowestScore =
-      scores.length > 0
-        ? Math.min(...scores)
-        : 0;
-
-    const avgCompletionTime =
-      attempts.length > 0
-        ? attempts.reduce(
-            (sum, attempt) =>
-              sum +
-              (attempt.completionTimeSeconds || 0),
-            0
-          ) / attempts.length
-        : 0;
-
-    const totalStarted =
-      await prisma.attempt.count({
-        where: {
-          quizId,
-        },
-      });
-
-    const completionRate =
-      totalStarted > 0
-        ? (
-            (totalAttempts / totalStarted) *
-            100
-          ).toFixed(2)
-        : 0;
-
-    const maxScoreResult =
-      await prisma.quizQuestion.aggregate({
-        where: {
-          quizId,
-        },
-        _sum: {
-          points: true,
-        },
-      });
-
-    const maxScore =
-      maxScoreResult._sum.points || 0;
-
-    const passedAttempts =
-      attempts.filter((attempt) => {
-        const percentage =
-          maxScore > 0
-            ? ((attempt.score || 0) /
-                maxScore) *
-              100
-            : 0;
-
-        return percentage >= 50;
-      }).length;
-
-    const passRate =
-      totalAttempts > 0
-        ? (
-            (passedAttempts /
-              totalAttempts) *
-            100
-          ).toFixed(2)
-        : 0;
-
-    const scoreDistribution = {
-      excellent: 0,
-      good: 0,
-      average: 0,
-      poor: 0,
-    };
-
-    for (const attempt of attempts) {
-      const percentage =
-        maxScore > 0
-          ? ((attempt.score || 0) /
-              maxScore) *
-            100
-          : 0;
-
-      if (percentage >= 80) {
-        scoreDistribution.excellent++;
-      } else if (percentage >= 60) {
-        scoreDistribution.good++;
-      } else if (percentage >= 40) {
-        scoreDistribution.average++;
-      } else {
-        scoreDistribution.poor++;
-      }
-    }
 
     return res.status(200).json({
       success: true,
-      analytics: {
-        maxScore,
-        totalAttempts,
-        totalStudents,
-        averageScore: Number(
-          averageScore.toFixed(2)
-        ),
-        highestScore,
-        lowestScore,
-        averageCompletionTimeSeconds:
-          Number(
-            avgCompletionTime.toFixed(2)
-          ),
-        completionRate: Number(
-          completionRate
-        ),
-        passRate: Number(passRate),
-        scoreDistribution,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "QUIZ ANALYTICS ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
-};
-
-// =====================
-// QUESTION ANALYTICS
-// =====================
-
-const getQuestionAnalytics = async (
-  req,
-  res
-) => {
-  try {
-    const { quizId } = req.params;
-
-    const quiz = await prisma.quiz.findUnique({
-      where: {
-        id: quizId,
-      },
-    });
-
-    if (!quiz) {
-      return res.status(404).json({
-        success: false,
-        message: "Quiz not found",
-      });
-    }
-
-    if (
-      req.user.role !== "ADMIN" &&
-      quiz.createdById !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
-    }
-
-    const quizQuestions =
-      await prisma.quizQuestion.findMany({
-        where: {
-          quizId,
-        },
-        include: {
-          question: true,
-        },
-        orderBy: {
-          order: "asc",
-        },
-      });
-
-    const analytics = [];
-
-    for (const item of quizQuestions) {
-      const totalAnswers =
-        await prisma.answer.count({
-          where: {
-            questionId:
-              item.questionId,
-          },
-        });
-
-      const correctAnswers =
-        await prisma.answer.count({
-          where: {
-            questionId:
-              item.questionId,
-            isCorrect: true,
-          },
-        });
-
-      const wrongAnswers =
-        await prisma.answer.count({
-          where: {
-            questionId:
-              item.questionId,
-            isCorrect: false,
-          },
-        });
-
-      const accuracy =
-        totalAnswers > 0
-          ? (
-              (correctAnswers /
-                totalAnswers) *
-              100
-            ).toFixed(2)
-          : 0;
-
-      analytics.push({
-        questionId:
-          item.question.id,
-        question:
-          item.question.text,
-        difficulty:
-          item.question.difficulty,
-        totalAnswers,
-        correctAnswers,
-        wrongAnswers,
-        accuracy: Number(
-          accuracy
-        ),
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      totalQuestions:
-        analytics.length,
       analytics,
     });
   } catch (error) {
-    console.error(
-      "QUESTION ANALYTICS ERROR:",
-      error
+    return handleError(res, error);
+  }
+};
+
+const getQuestionAnalytics = async (req, res) => {
+  try {
+    const analytics = await analyticsService.getQuestionAnalytics(
+      req.params.quizId,
+      req.user,
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
+    return res.status(200).json({
+      success: true,
+      ...analytics,
     });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getQuizAttemptsIntegrity = async (req, res) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 50);
+
+    if (
+      !Number.isInteger(page) ||
+      page < 1 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "page must be positive and limit must be between 1 and 100",
+      });
+    }
+
+    const result = await analyticsService.getQuizAttemptsIntegrity(
+      req.params.quizId,
+      req.user,
+      { page, limit },
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getOverallAnalytics = async (req, res) => {
+  try {
+    const analytics = await analyticsService.getOverallAnalytics(req.user);
+
+    return res.status(200).json({
+      success: true,
+      ...analytics,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getQuizComparison = async (req, res) => {
+  try {
+    const result = await analyticsService.getQuizComparison(req.user);
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getAnalyticsTrends = async (req, res) => {
+  try {
+    const days = Number(req.query.days ?? 30);
+
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      return res.status(400).json({
+        success: false,
+        message: "days must be an integer between 1 and 365",
+      });
+    }
+
+    const result = await analyticsService.getAnalyticsTrends(req.user, {
+      days,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+const getTeacherAnalytics = async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Only administrators can view teacher analytics",
+      });
+    }
+
+    const result = await analyticsService.getTeacherAnalytics();
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return handleError(res, error);
   }
 };
 
 module.exports = {
   getQuizAnalytics,
   getQuestionAnalytics,
+  getQuizAttemptsIntegrity,
+  getOverallAnalytics,
+  getQuizComparison,
+  getAnalyticsTrends,
+  getTeacherAnalytics,
 };

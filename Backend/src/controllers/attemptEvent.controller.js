@@ -1,4 +1,9 @@
 const prisma = require("../config/prismaClient");
+const { finalizeAttempt } = require("../services/attempt.service");
+
+// Violations allowed before the attempt is submitted automatically.
+// Keep in sync with MAX_VIOLATIONS in the student AttemptPage.
+const MAX_VIOLATIONS = 5;
 
 // =====================
 // CREATE EVENT
@@ -44,9 +49,37 @@ const createAttemptEvent = async (req, res) => {
       },
     });
 
+    // Source of truth for the violation limit. The client must never keep
+    // its own count, because a refresh would reset it.
+    const violationCount = await prisma.attemptEvent.count({
+      where: { attemptId },
+    });
+
+    // Server-side enforcement: at the limit the attempt is finalized here,
+    // so a modified browser cannot ignore the rule. The atomic claim in
+    // finalizeAttempt makes this safe if the browser submits at the same time.
+    let autoSubmitted = false;
+
+    if (violationCount >= MAX_VIOLATIONS) {
+      try {
+        await finalizeAttempt(attemptId, "SUBMITTED");
+        autoSubmitted = true;
+      } catch (finalizeError) {
+        // Already finalized by the browser, the timer or the cron job: fine.
+        if (finalizeError.code !== "ATTEMPT_ALREADY_SUBMITTED") {
+          console.error(
+            "VIOLATION AUTO-SUBMIT ERROR:",
+            finalizeError
+          );
+        }
+      }
+    }
+
     return res.status(201).json({
       success: true,
       event,
+      violationCount,
+      autoSubmitted,
     });
   } catch (error) {
     console.error("CREATE EVENT ERROR:", error);

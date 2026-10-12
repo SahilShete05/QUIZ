@@ -90,6 +90,41 @@ const createQuestion = async (req, res) => {
 // GET ALL QUESTION
 // =====================
 
+// A teacher may change or delete a question only if every quiz that uses it
+// belongs to them. Questions have no owner column, so this is the ownership
+// rule. Admins can change anything.
+const canModifyQuestion = async (questionId, user) => {
+  if (user.role === "ADMIN") return true;
+
+  const foreignLink =
+    await prisma.quizQuestion.findFirst({
+      where: {
+        questionId,
+        quiz: {
+          createdById: {
+            not: user.id,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  return !foreignLink;
+};
+
+// Order-independent fingerprint of a question's options, used to tell whether
+// an update really changes them.
+const optionSignature = (list) =>
+  list
+    .map(
+      (option) =>
+        `${String(option.text).trim()}|${Boolean(option.isCorrect)}`
+    )
+    .sort()
+    .join("\n");
+
 const getAllQuestions = async (req, res) => {
   try {
     const { categoryId } = req.query;
@@ -186,6 +221,14 @@ const updateQuestion = async (req, res) => {
       });
     }
 
+    if (!(await canModifyQuestion(existingQuestion.id, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This question is used in another teacher's quiz",
+      });
+    }
+
     if (categoryId) {
       const category =
         await prisma.category.findUnique({
@@ -202,12 +245,37 @@ const updateQuestion = async (req, res) => {
       }
     }
 
+    // Options are replaced only when they really changed. Student answers
+    // point to option rows, so once anyone has answered this question its
+    // options are locked (the delete would fail halfway otherwise).
+    const optionsChanged =
+      Array.isArray(options) &&
+      optionSignature(options) !==
+        optionSignature(existingQuestion.options);
+
+    if (optionsChanged) {
+      const answerCount =
+        await prisma.answer.count({
+          where: {
+            questionId: req.params.id,
+          },
+        });
+
+      if (answerCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Students have already answered this question, so its options cannot be changed",
+        });
+      }
+    }
+
     // =====================
-    // UPDATE QUESTION
+    // UPDATE QUESTION + OPTIONS (one transaction)
     // =====================
 
-    const updatedQuestion =
-      await prisma.question.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.question.update({
         where: {
           id: req.params.id,
         },
@@ -220,32 +288,26 @@ const updateQuestion = async (req, res) => {
         },
       });
 
-    // =====================
-    // UPDATE OPTIONS
-    // =====================
+      if (optionsChanged) {
+        await tx.option.deleteMany({
+          where: {
+            questionId: req.params.id,
+          },
+        });
 
-    if (
-      options &&
-      Array.isArray(options)
-    ) {
-      await prisma.option.deleteMany({
-        where: {
-          questionId: req.params.id,
-        },
-      });
-
-      await prisma.option.createMany({
-        data: options.map(
-          (option) => ({
-            questionId:
-              req.params.id,
-            text: option.text,
-            isCorrect:
-              option.isCorrect,
-          })
-        ),
-      });
-    }
+        await tx.option.createMany({
+          data: options.map(
+            (option) => ({
+              questionId:
+                req.params.id,
+              text: option.text,
+              isCorrect:
+                option.isCorrect,
+            })
+          ),
+        });
+      }
+    });
 
     const finalQuestion =
       await prisma.question.findUnique({
@@ -294,6 +356,14 @@ const deleteQuestion = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Question not found",
+      });
+    }
+
+    if (!(await canModifyQuestion(existingQuestion.id, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This question is used in another teacher's quiz",
       });
     }
 

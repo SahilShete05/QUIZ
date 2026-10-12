@@ -109,25 +109,33 @@ const getAllQuizzes = async (req, res) => {
       },
     };
 
-    const quizzes = await prisma.quiz.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        _count: {
-          select: {
-            questions: true,
+    // A teacher only sees their own quizzes (admins see all).
+    if (req.user.role !== "ADMIN") {
+      where.createdById = req.user.id;
+    }
+
+    // Run both independent database queries concurrently.
+    const [quizzes, total] = await Promise.all([
+      prisma.quiz.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          _count: {
+            select: {
+              questions: true,
+            },
           },
         },
-      },
-    });
+      }),
 
-    const total = await prisma.quiz.count({
-      where,
-    });
+      prisma.quiz.count({
+        where,
+      }),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -135,9 +143,7 @@ const getAllQuizzes = async (req, res) => {
       pagination: {
         totalItems: total,
         currentPage: page,
-        totalPages: Math.ceil(
-          total / limit
-        ),
+        totalPages: Math.ceil(total / limit),
         limit,
       },
 
@@ -158,14 +164,13 @@ const getAllQuizzes = async (req, res) => {
   }
 };
 
+
 // =====================
 // GET PUBLISHED QUIZZES
 // =====================
 
-const getPublishedQuizzes = async (
-  req,
-  res
-) => {
+
+const getPublishedQuizzes = async (req, res) => {
   try {
     const page = Math.max(
       parseInt(req.query.page) || 1,
@@ -189,25 +194,28 @@ const getPublishedQuizzes = async (
       },
     };
 
-    const quizzes = await prisma.quiz.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        _count: {
-          select: {
-            questions: true,
+    // Run both independent database queries concurrently.
+    const [quizzes, total] = await Promise.all([
+      prisma.quiz.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          _count: {
+            select: {
+              questions: true,
+            },
           },
         },
-      },
-    });
+      }),
 
-    const total = await prisma.quiz.count({
-      where,
-    });
+      prisma.quiz.count({
+        where,
+      }),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -215,9 +223,7 @@ const getPublishedQuizzes = async (
       pagination: {
         totalItems: total,
         currentPage: page,
-        totalPages: Math.ceil(
-          total / limit
-        ),
+        totalPages: Math.ceil(total / limit),
         limit,
       },
 
@@ -235,6 +241,7 @@ const getPublishedQuizzes = async (
     });
   }
 };
+
 
 // =====================
 // UPDATE QUIZ

@@ -1,4 +1,27 @@
+const { z } = require("zod");
 const genAI = require("../config/gemini");
+
+// Shape every AI-generated question must have before it is saved.
+// correctAnswer must exactly match one option, and options must be unique,
+// otherwise a question could be stored with zero or several correct options.
+const aiQuestionSchema = z
+  .object({
+    question: z.string().trim().min(1),
+    options: z
+      .array(z.string().trim().min(1))
+      .min(2)
+      .max(6),
+    correctAnswer: z.string().trim().min(1),
+  })
+  .refine(
+    (q) =>
+      q.options.includes(q.correctAnswer) &&
+      new Set(q.options).size === q.options.length,
+    {
+      message:
+        "correctAnswer must match exactly one option",
+    }
+  );
 
 // =====================
 // GET AI QUESTIONS
@@ -47,10 +70,41 @@ Return ONLY valid JSON.
     .replace(/```/g, "")
     .trim();
 
-  const questions =
-    JSON.parse(cleanText);
+  let parsed;
 
-  return questions;
+  try {
+    parsed = JSON.parse(cleanText);
+  } catch (error) {
+    throw new Error(
+      "AI returned invalid JSON"
+    );
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      "AI returned an unexpected format"
+    );
+  }
+
+  // Keep only valid questions; never store malformed ones.
+  const questions = [];
+
+  for (const item of parsed) {
+    const result =
+      aiQuestionSchema.safeParse(item);
+
+    if (result.success) {
+      questions.push(result.data);
+    }
+  }
+
+  if (questions.length === 0) {
+    throw new Error(
+      "AI returned no valid questions"
+    );
+  }
+
+  return questions.slice(0, questionCount);
 };
 
 
@@ -100,4 +154,3 @@ module.exports = {
   getAIQuestions,
   generateExplanation,
 };
-

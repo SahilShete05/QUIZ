@@ -9,26 +9,21 @@ datasource db {
 }
 
 model User {
-  id             String      @id @default(uuid())
+  id             String         @id @default(uuid())
   name           String
-  email          String      @unique
+  email          String         @unique
   passwordHash   String
-
+  role           Role           @default(STUDENT)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  level          Int            @default(1)
+  xp             Int            @default(0)
   resetToken     String?
   resetTokenExp  DateTime?
-
-  role           Role        @default(STUDENT)
-
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-
-  level          Int         @default(1)
-  xp             Int         @default(0)
-
   attempts       Attempt[]
-  quizzesCreated Quiz[]      @relation("QuizCreatedBy")
+  notifications  Notification[]
+  quizzesCreated Quiz[]         @relation("QuizCreatedBy")
   badges         UserBadge[]
-  notifications Notification[]
 }
 
 model Quiz {
@@ -168,19 +163,14 @@ model AttemptEvent {
   @@index([attemptId, eventType])
 }
 
-
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-
   title     String
   message   String
-
   isRead    Boolean  @default(false)
-
   createdAt DateTime @default(now())
-
-  user User @relation(fields:[userId], references:[id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }

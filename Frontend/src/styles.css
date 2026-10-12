@@ -1,0 +1,434 @@
+@import "tailwindcss";
+
+/* =========================================================
+   QUIZZLY — GLOBAL DESIGN SYSTEM
+   ========================================================= */
+
+:root {
+  color-scheme: dark;
+
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-tertiary: #111827;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+
+  --accent: #34d399;
+  --accent-hover: #6ee7b7;
+  --accent-strong: #10b981;
+
+  --accent-soft: rgba(52, 211, 153, 0.1);
+  --accent-border: rgba(52, 211, 153, 0.2);
+
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.1);
+
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.1);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-solid: #0f172a;
+  --surface-soft: rgba(255, 255, 255, 0.025);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+
+  --input-bg: rgba(255, 255, 255, 0.025);
+  --input-bg-focus: rgba(255, 255, 255, 0.04);
+
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.18);
+  --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.2);
+
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.5rem;
+}
+
+/* =========================================================
+   LIGHT THEME
+   ========================================================= */
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-strong: #047857;
+
+  --accent-soft: rgba(5, 150, 105, 0.08);
+  --accent-border: rgba(5, 150, 105, 0.18);
+
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.07);
+
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.08);
+
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-solid: #ffffff;
+  --surface-soft: rgba(15, 23, 42, 0.025);
+  --surface-hover: rgba(15, 23, 42, 0.045);
+
+  --input-bg: rgba(15, 23, 42, 0.025);
+  --input-bg-focus: #ffffff;
+
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 18px 50px rgba(15, 23, 42, 0.08);
+}
+
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
+html {
+  min-height: 100%;
+  background: var(--bg-primary);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+
+  background:
+    radial-gradient(
+      circle at 15% 0%,
+      rgba(16, 185, 129, 0.06),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 85% 10%,
+      rgba(34, 211, 238, 0.04),
+      transparent 26rem
+    ),
+    var(--bg-primary);
+
+  color: var(--text-primary);
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* =========================================================
+   SHARED GLASS SURFACE
+   ========================================================= */
+
+.glass-panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* =========================================================
+   SHARED BUTTONS
+   ========================================================= */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  min-height: 2.5rem;
+  padding: 0.625rem 1rem;
+
+  border-radius: 0.75rem;
+
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.button-primary {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #022c22;
+  box-shadow: 0 8px 24px rgba(52, 211, 153, 0.12);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.button-ghost {
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+}
+
+.button-ghost:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* =========================================================
+   SHARED INPUTS
+   ========================================================= */
+
+.input-base {
+  width: 100%;
+
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+
+  background: var(--input-bg);
+
+  padding: 0.7rem 0.875rem;
+
+  color: var(--text-primary);
+
+  outline: none;
+
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.input-base::placeholder {
+  color: var(--text-subtle);
+}
+
+.input-base:focus {
+  border-color: var(--accent-border);
+  background: var(--input-bg-focus);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* =========================================================
+   THEME COMPATIBILITY
+   ---------------------------------------------------------
+   Existing pages currently use hard-coded Tailwind colors.
+   These overrides keep those pages visually consistent
+   while we progressively move them to semantic classes.
+   ========================================================= */
+
+/* Main dark backgrounds */
+
+[data-theme='light'] [class~="bg-slate-950"] {
+  background-color: var(--bg-primary);
+}
+
+[data-theme='light'] [class~="bg-slate-950/80"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 88%,
+    transparent
+  );
+}
+
+[data-theme='light'] [class~="bg-slate-950/95"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 96%,
+    transparent
+  );
+}
+
+[data-theme='light'] [class~="bg-slate-950/70"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 70%,
+    transparent
+  );
+}
+
+/* Primary text */
+
+[data-theme='light'] [class~="text-white"],
+[data-theme='light'] [class~="text-slate-100"] {
+  color: var(--text-primary);
+}
+
+/* Secondary text */
+
+[data-theme='light'] [class~="text-slate-200"] {
+  color: var(--text-secondary);
+}
+
+[data-theme='light'] [class~="text-slate-300"] {
+  color: var(--text-secondary);
+}
+
+[data-theme='light'] [class~="text-slate-400"] {
+  color: var(--text-muted);
+}
+
+[data-theme='light'] [class~="text-slate-500"] {
+  color: var(--text-muted);
+}
+
+[data-theme='light'] [class~="text-slate-600"] {
+  color: var(--text-subtle);
+}
+
+/* White borders */
+
+[data-theme='light'] [class~="border-white/[0.07]"],
+[data-theme='light'] [class~="border-white/[0.08]"],
+[data-theme='light'] [class~="border-white/[0.06]"],
+[data-theme='light'] [class~="border-white/[0.12]"] {
+  border-color: var(--border);
+}
+
+/* White translucent surfaces */
+
+[data-theme='light'] [class~="bg-white/[0.015]"],
+[data-theme='light'] [class~="bg-white/[0.025]"],
+[data-theme='light'] [class~="bg-white/[0.03]"],
+[data-theme='light'] [class~="bg-white/[0.035]"],
+[data-theme='light'] [class~="bg-white/[0.04]"],
+[data-theme='light'] [class~="bg-white/[0.05]"],
+[data-theme='light'] [class~="bg-white/[0.06]"] {
+  background-color: var(--surface-soft);
+}
+
+/* Hover surfaces */
+
+[data-theme='light'] [class~="hover:bg-white/[0.04]"]:hover,
+[data-theme='light'] [class~="hover:bg-white/[0.06]"]:hover {
+  background-color: var(--surface-hover);
+}
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.7);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(52, 211, 153, 0.22);
+  color: var(--text-primary);
+}
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+
+@keyframes quizzly-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-quizzly-in {
+  animation: quizzly-fade-in 300ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -3,6 +3,8 @@ const express = require("express");
 const attemptEventController = require("../controllers/attemptEvent.controller");
 
 const { protect } = require("../middlewares/auth.middleware");
+const validate = require("../middlewares/validate.middleware");
+const { createAttemptEventSchema } = require("../validator/attemptEvent.validator");
 
 const router = express.Router();
 
@@ -41,7 +43,7 @@ const router = express.Router();
  * /api/attempt-events/:attemptId/events
  */
 
-router.post("/:attemptId/events", protect, attemptEventController.createAttemptEvent);
+router.post("/:attemptId/events", protect, validate(createAttemptEventSchema), attemptEventController.createAttemptEvent);
 
 /**
  * @swagger

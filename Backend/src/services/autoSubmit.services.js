@@ -4,7 +4,9 @@ const prisma = require("../config/prismaClient");
 const { finalizeAttempt } = require("../services/attempt.service");
 
 const startAutoSubmitJob = () => {
-  cron.schedule("*/1 * * * *", async () => {
+  // Every 10 seconds (6-field cron: seconds first) instead of every minute,
+  // so expired attempts are closed at most ~10s late.
+  cron.schedule("*/10 * * * * *", async () => {
     try {
       const attempts =
         await prisma.attempt.findMany({
@@ -42,6 +44,14 @@ const startAutoSubmitJob = () => {
               `Successfully auto submitted ${attempt.id}`
             );
           } catch (submitError) {
+            // The student's browser or the manual submit already finalized it.
+            if (
+              submitError.code ===
+              "ATTEMPT_ALREADY_SUBMITTED"
+            ) {
+              continue;
+            }
+
             console.error(
               `Failed to auto submit ${attempt.id}`,
               submitError

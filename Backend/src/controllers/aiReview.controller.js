@@ -1,7 +1,7 @@
 const prisma = require("../config/prismaClient");
 const {
   generateExplanation,
-} = require("../services/ai.service");
+} = require("../services/ai.services");
 
 // =====================
 // GENERATE AI REVIEW
@@ -20,6 +20,7 @@ const generateAttemptReview = async (
           id: attemptId,
         },
         include: {
+          quiz: true,
           answers: {
             include: {
               question: {
@@ -40,14 +41,28 @@ const generateAttemptReview = async (
       });
     }
 
-    if (
-      attempt.userId !== req.user.id &&
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "TEACHER"
-    ) {
+    // Student: own attempt. Teacher: only attempts on quizzes they created.
+    const isOwner =
+      attempt.userId === req.user.id;
+
+    const isQuizTeacher =
+      req.user.role === "TEACHER" &&
+      attempt.quiz.createdById === req.user.id;
+
+    const isAdmin =
+      req.user.role === "ADMIN";
+
+    if (!isOwner && !isQuizTeacher && !isAdmin) {
       return res.status(403).json({
         success: false,
         message: "Access denied",
+      });
+    }
+
+    if (attempt.status === "IN_PROGRESS") {
+      return res.status(400).json({
+        success: false,
+        message: "Attempt not submitted yet",
       });
     }
 
@@ -60,21 +75,27 @@ const generateAttemptReview = async (
           (option) => option.isCorrect
         );
 
+      const correctText =
+        correctOption?.text ||
+        answer.question.answerKey ||
+        null;
+
       const studentAnswer =
         answer.selectedOption?.text ||
+        answer.textResponse ||
         "No answer submitted";
 
       let explanation =
         answer.aiExplanation;
 
       if (
-        !answer.isCorrect &&
+        answer.isCorrect === false &&
         !explanation
       ) {
         explanation =
           await generateExplanation(
             answer.question.text,
-            correctOption?.text || "",
+            correctText || "",
             studentAnswer
           );
 
@@ -96,8 +117,7 @@ const generateAttemptReview = async (
           answer.question.text,
         studentAnswer,
         correctAnswer:
-          correctOption?.text ||
-          null,
+          correctText,
         isCorrect:
           answer.isCorrect,
         explanation,

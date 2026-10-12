@@ -55,7 +55,7 @@ router.post("/", protect, authorize("TEACHER", "ADMIN"), validate(createQuestion
  *GET /api/questions/
  */
 
-router.get("/",questionController.getAllQuestions);
+router.get("/", protect, authorize("TEACHER", "ADMIN"), questionController.getAllQuestions);
 
 /**
  * @swagger
@@ -80,7 +80,7 @@ router.get("/",questionController.getAllQuestions);
  *GET /api/questions/:id
  */
 
-router.get("/:id", questionController.getQuestionById);
+router.get("/:id", protect, authorize("TEACHER", "ADMIN"), questionController.getQuestionById);
 
 /**
  * @swagger

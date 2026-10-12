@@ -23,6 +23,8 @@ const attemptEventRoutes = require("./routes/attemptEvent.routes");
 const aiRoutes = require("./routes/ai.rotues");
 const teacherDashboardRoutes = require("./routes/teacherDashboard.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const adminDashboardRoutes = require("./routes/adminDashboard.routes");
+
 
 const app = express();
 
@@ -130,6 +132,10 @@ app.use(
   "/api/notifications",
   notificationRoutes
 );
+
+app.use(
+  "/api/admin/dashboard",
+  adminDashboardRoutes);
 
 // ======================
 // SWAGGER JSON

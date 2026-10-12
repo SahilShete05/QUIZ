@@ -376,6 +376,7 @@ const forgotPassword = async (
 
     const resetUrl =
       `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    
 
     await sendResetPasswordEmail(
       user.email,
