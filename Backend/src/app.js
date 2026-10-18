@@ -41,7 +41,7 @@ app.use(helmet());
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
-  "https://quiz-eight-xi-89.vercel.app",
+  "https://quiz-theta-brown.vercel.app",
 ];
 
 app.use(
