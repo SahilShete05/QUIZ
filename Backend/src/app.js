@@ -38,12 +38,23 @@ app.use(helmet());
 // CORS
 // ======================
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://quiz-eight-xi-89.vercel.app",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header,
+      // such as health checks and server-to-server calls.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
