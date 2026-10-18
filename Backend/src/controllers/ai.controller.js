@@ -431,7 +431,7 @@ Maximum 120 words.
 
       const response =
         await genAI.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-3.5-flash-lite",
           contents: prompt,
         });
 
