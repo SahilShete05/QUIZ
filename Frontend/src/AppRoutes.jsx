@@ -38,7 +38,7 @@ import { TeacherQuizzesPage } from './features/teacher/TeacherQuizzesPage';
 import { TeacherQuizEditorPage } from './features/teacher/TeacherQuizEditorPage';
 import { TeacherQuizManagementPage } from './features/teacher/TeacherQuizManagementPage';
 import { TeacherAIGeneratorPage } from './features/teacher/TeacherAIGeneratorPage';
-import { TeacherProfilePage } from './features/teacher/TeacherProfilePage';
+import { TeacherProfilePage } from './features/teacher/teacherProfilePage';
 import { TeacherAnalyticsPage } from "./features/analytics/TeacherAnalyticsPage";
 
 // Admin
