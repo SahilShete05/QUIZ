@@ -49,6 +49,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "https://quiz-rho-eight-91.vercel.app",
+  "https://quiz-sigma-ten-21.vercel.app",
   ...configuredOrigins,
 ];
 
