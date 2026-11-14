@@ -38,10 +38,18 @@ app.use(helmet());
 // CORS
 // ======================
 
+const configuredOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  : [];
+
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "https://quiz-rho-eight-91.vercel.app",
+  ...configuredOrigins,
 ];
 
 app.use(
